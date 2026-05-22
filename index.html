@@ -8,27 +8,27 @@
     <style>
         body { text-align: center; font-family: sans-serif; padding: 20px; }
         #result { font-size: 24px; font-weight: bold; margin-top: 20px; color: blue; }
-    </style>
-</head>
-<body>
-    <h2>대시보드 실시간 입장 스캐너</h2>
-    
-    <div id="reader" style="width:100%; max-width:500px; margin: 0 auto;"></div>
-    
-    <div id="result">대기 중...</div>
-
   <script>
         const SUPABASE_URL = "https://[본인프로젝트 URL]/rest/v1/entry_logs"; 
         const SUPABASE_KEY = "[복사한 API 키]";
 
-        let isProcessing = false; // 🔒 중복 방지용 자물쇠 변수 추가
+        let isProcessing = false; 
+        let lastScannedId = ""; // 🔒 방금 찍은 학번을 기억하는 변수
+        let lastScanTime = 0;   // 🔒 방금 찍은 시간을 기억하는 변수
 
         function onScanSuccess(decodedText) {
-            // 자물쇠가 잠겨있으면(처리 중이면) 아무것도 하지 않고 무시
             if (isProcessing) return; 
-            
-            // 통과했다면 즉시 자물쇠부터 잠금
+
+            const currentTime = new Date().getTime();
+
+            // 핵심 로직: 방금 찍은 사람과 '똑같은 학번'이고, '7초'가 안 지났다면 완벽 무시!
+            if (decodedText === lastScannedId && (currentTime - lastScanTime) < 7000) {
+                return; 
+            }
+
             isProcessing = true; 
+            lastScannedId = decodedText; // 지금 찍은 학번 기억
+            lastScanTime = currentTime;  // 지금 찍은 시간 기억
 
             html5QrcodeScanner.pause();
             document.getElementById('result').innerText = decodedText + " 학번 전송 중...";
@@ -58,13 +58,13 @@
                 document.getElementById('result').style.color = "red";
             })
             .finally(() => {
-                // 전송이 성공하든 실패하든 2초 뒤에 자물쇠를 풀고 다음 사람을 받을 준비
+                // 처리가 끝나면 1초 뒤에 스캐너만 다시 켬 (동일 인물 7초 제한은 계속 유지됨)
                 setTimeout(() => { 
                     document.getElementById('result').innerText = "다음 학생 스캔 대기 중...";
                     document.getElementById('result').style.color = "blue";
-                    isProcessing = false; // 🔓 자물쇠 풀기
+                    isProcessing = false; 
                     html5QrcodeScanner.resume(); 
-                }, 2000); // 2초(2000ms) 여유를 둠
+                }, 1000); 
             });
         }
 
