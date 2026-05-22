@@ -17,20 +17,23 @@
     
     <div id="result">대기 중...</div>
 
-    <script>
-        // 1. 방금 찾으신 Supabase 정보 입력
-        // ⚠️ 주소 맨 끝에 테이블 이름(entry_logs)이 꼭 있어야 합니다.
-        const SUPABASE_URL = "https://ogsnlvswhvilgoupibha.supabase.co/rest/v1/entry_logs"; 
-        const SUPABASE_KEY = "sb_publishable_F5HGrXs4Pm-XGL-gHblOIQ_Z4KRH9bO";
+  <script>
+        const SUPABASE_URL = "https://[본인프로젝트 URL]/rest/v1/entry_logs"; 
+        const SUPABASE_KEY = "[복사한 API 키]";
 
-        // 2. QR 코드가 읽혔을 때 실행되는 함수
+        let isProcessing = false; // 🔒 중복 방지용 자물쇠 변수 추가
+
         function onScanSuccess(decodedText) {
-            // 중복 스캔 방지를 위해 카메라 임시 정지
+            // 자물쇠가 잠겨있으면(처리 중이면) 아무것도 하지 않고 무시
+            if (isProcessing) return; 
+            
+            // 통과했다면 즉시 자물쇠부터 잠금
+            isProcessing = true; 
+
             html5QrcodeScanner.pause();
             document.getElementById('result').innerText = decodedText + " 학번 전송 중...";
             document.getElementById('result').style.color = "orange";
 
-            // 3. Supabase로 학번 다이렉트 전송 (POST 통신)
             fetch(SUPABASE_URL, {
                 method: 'POST',
                 headers: {
@@ -38,7 +41,7 @@
                     'Authorization': 'Bearer ' + SUPABASE_KEY,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ student_id: decodedText }) // 학번 쏘기
+                body: JSON.stringify({ student_id: decodedText }) 
             })
             .then(response => {
                 if (response.ok) {
@@ -48,21 +51,23 @@
                     document.getElementById('result').innerText = "❌ 전송 실패";
                     document.getElementById('result').style.color = "red";
                 }
-                
-                // 1.5초 뒤 다음 학생을 위해 스캐너 자동 재가동
-                setTimeout(() => { 
-                    document.getElementById('result').innerText = "다음 학생 스캔 대기 중...";
-                    document.getElementById('result').style.color = "blue";
-                    html5QrcodeScanner.resume(); 
-                }, 1500);
             })
             .catch(error => {
                 console.error('Error:', error);
-                html5QrcodeScanner.resume();
+                document.getElementById('result').innerText = "❌ 네트워크 오류";
+                document.getElementById('result').style.color = "red";
+            })
+            .finally(() => {
+                // 전송이 성공하든 실패하든 2초 뒤에 자물쇠를 풀고 다음 사람을 받을 준비
+                setTimeout(() => { 
+                    document.getElementById('result').innerText = "다음 학생 스캔 대기 중...";
+                    document.getElementById('result').style.color = "blue";
+                    isProcessing = false; // 🔓 자물쇠 풀기
+                    html5QrcodeScanner.resume(); 
+                }, 2000); // 2초(2000ms) 여유를 둠
             });
         }
 
-        // 4. 카메라 스캐너 세팅 및 실행
         const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
         html5QrcodeScanner.render(onScanSuccess);
