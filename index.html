@@ -7,18 +7,17 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         body { text-align: center; font-family: sans-serif; padding: 20px; }
+        #reader { width:100%; max-width:500px; margin: 0 auto; }
         #result { font-size: 24px; font-weight: bold; margin-top: 20px; color: blue; }
     </style>
 </head>
 <body>
     <h2>대시보드 실시간 입장 스캐너</h2>
     
-    <div id="reader" style="width:100%; max-width:500px; margin: 0 auto;"></div>
-    
+    <div id="reader"></div>
     <div id="result">대기 중...</div>
 
     <script>
-        // ⚠️ 대표님의 주소와 키를 여기에 꼭 다시 넣어주세요!
         const SUPABASE_URL = "https://ogsnlvswhvilgoupibha.supabase.co/rest/v1/entry_logs"; 
         const SUPABASE_KEY = "sb_publishable_F5HGrXs4Pm-XGL-gHblOIQ_Z4KRH9bO";
 
@@ -27,15 +26,19 @@
         let lastScanTime = 0;   
 
         function onScanSuccess(decodedText) {
-            if (isProcessing) return; 
-
             const currentTime = new Date().getTime();
 
-            // 핵심 방어막: 방금 찍은 학번이고 7초가 안 지났으면 철벽 방어!
+            // 💡 [핵심 방어막 1] 네트워크 전송 중이면 무조건 튕겨냅니다.
+            if (isProcessing) return; 
+
+            // 💡 [핵심 방어막 2] 동일 학번 연타 방지 (마지막 스캔 후 7초 안 지났으면 메시지만 띄우고 차단)
             if (decodedText === lastScannedId && (currentTime - lastScanTime) < 7000) {
+                document.getElementById('result').innerText = `⚠️ ${decodedText} (이미 처리됨, 잠시 후 스캔)`;
+                document.getElementById('result').style.color = "purple";
                 return; 
             }
 
+            // 스캔 승인 -> 문 잠그기
             isProcessing = true; 
             lastScannedId = decodedText; 
             lastScanTime = currentTime;  
@@ -68,12 +71,15 @@
                 document.getElementById('result').style.color = "red";
             })
             .finally(() => {
+                // 💡 1.5초 후에 다음 사람을 위해 스캐너를 깹니다.
                 setTimeout(() => { 
                     document.getElementById('result').innerText = "다음 학생 스캔 대기 중...";
                     document.getElementById('result').style.color = "blue";
+                    
+                    // 스캐너는 켜지지만, 이전에 찍은 사람은 위쪽 [방어막 2]에 걸려 7초간 전송이 차단됩니다.
                     isProcessing = false; 
                     html5QrcodeScanner.resume(); 
-                }, 1000); 
+                }, 1500); 
             });
         }
 
