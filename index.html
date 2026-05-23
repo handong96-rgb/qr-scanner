@@ -22,26 +22,23 @@
         const SUPABASE_KEY = "sb_publishable_F5HGrXs4Pm-XGL-gHblOIQ_Z4KRH9bO";
 
         let isProcessing = false; 
-        let lastScannedId = ""; 
-        let lastScanTime = 0;   
+        // 💡 7초간 재입장을 막을 학번 블랙리스트 장부 생성
+        const blockList = new Set(); 
 
         function onScanSuccess(decodedText) {
-            const currentTime = new Date().getTime();
-
-            // 💡 [핵심 방어막 1] 네트워크 전송 중이면 무조건 튕겨냅니다.
+            // 💡 [방어막 1] 네트워크 전송 중이면 철저히 무시
             if (isProcessing) return; 
 
-            // 💡 [핵심 방어막 2] 동일 학번 연타 방지 (마지막 스캔 후 7초 안 지났으면 메시지만 띄우고 차단)
-            if (decodedText === lastScannedId && (currentTime - lastScanTime) < 7000) {
+            // 💡 [방어막 2] 블랙리스트 장부에 있는 학번이면 7초 동안 무조건 원천 차단!
+            if (blockList.has(decodedText)) {
                 document.getElementById('result').innerText = `⚠️ ${decodedText} (이미 처리됨, 잠시 후 스캔)`;
                 document.getElementById('result').style.color = "purple";
                 return; 
             }
 
-            // 스캔 승인 -> 문 잠그기
+            // 문 잠그고 블랙리스트에 학번 등록
             isProcessing = true; 
-            lastScannedId = decodedText; 
-            lastScanTime = currentTime;  
+            blockList.add(decodedText);
 
             html5QrcodeScanner.pause();
             document.getElementById('result').innerText = decodedText + " 학번 전송 중...";
@@ -71,15 +68,20 @@
                 document.getElementById('result').style.color = "red";
             })
             .finally(() => {
-                // 💡 1.5초 후에 다음 사람을 위해 스캐너를 깹니다.
+                // 💡 전송이 끝난 후 1.5초 뒤에 카메라는 켜서 다음 사람을 받되, 
+                // 방금 찍은 사람은 블랙리스트에 여전히 묶여있습니다.
                 setTimeout(() => { 
                     document.getElementById('result').innerText = "다음 학생 스캔 대기 중...";
                     document.getElementById('result').style.color = "blue";
-                    
-                    // 스캐너는 켜지지만, 이전에 찍은 사람은 위쪽 [방어막 2]에 걸려 7초간 전송이 차단됩니다.
                     isProcessing = false; 
                     html5QrcodeScanner.resume(); 
                 }, 1500); 
+
+                // 💡 [핵심 장치] 정확히 7초가 지나야 블랙리스트 장부에서 학번을 지워줍니다.
+                setTimeout(() => {
+                    blockList.delete(decodedText);
+                    console.log(`${decodedText} 학번 잠금 해제`);
+                }, 7000);
             });
         }
 
